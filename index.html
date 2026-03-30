@@ -417,7 +417,7 @@
 <script>
   (function () {
     emailjs.init({
-      publicKey: "YOUR_PUBLIC_KEY"
+      publicKey: "PzdBAGGoRuRxcWb0B"
     });
   })();
 </script>
@@ -654,7 +654,7 @@ function getResultSummary() {
 }
 
 function sendResultEmail(summary) {
-  emailjs.send("YOUR_SERVICE_ID", "YOUR_TEMPLATE_ID", {
+  emailjs.send("service_ubju8sb", "template_cd64f0d", {
     student_name: studentName,
     score: summary.score,
     percentage: summary.pct + '%',
