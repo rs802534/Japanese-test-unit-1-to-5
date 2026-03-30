@@ -339,8 +339,29 @@
     transition: background 0.2s;
   }
   .btn-restart:hover { background: var(--green-dark); }
+  .review-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .review-note.correct {
+    background: var(--green-light);
+    color: var(--green-dark);
+  }
+  .review-note.wrong {
+    background: var(--red-light);
+    color: #7a1f1f;
+  }
+  .result-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
 
   @media (max-width: 480px) {
+    .result-actions { grid-template-columns: 1fr; }
     .start-card, .result-card { padding: 1.8rem 1.2rem; }
     .question-card { padding: 1.2rem; }
     .score-big .score-num { font-size: 40px; }
@@ -379,6 +400,7 @@
       <div id="passage-area"></div>
       <div class="q-text" id="q-text"></div>
       <div class="options" id="options"></div>
+      <div id="review-note"></div>
     </div>
     <div class="nav-row">
       <button class="btn-nav" onclick="prevQ()">← Back</button>
@@ -408,10 +430,12 @@
       <h3>Section Breakdown</h3>
       <div id="r-sections"></div>
     </div>
-    <button class="btn-restart" onclick="restartTest()">Take Test Again</button>
+    <div class="result-actions">
+      <button class="btn-nav" onclick="reviewAnswers()">Review Answers</button>
+      <button class="btn-restart" onclick="restartTest()">Take Test Again</button>
+    </div>
   </div>
 </div>
-
 
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
@@ -579,15 +603,45 @@ function renderQ() {
   document.getElementById('q-text').textContent = 'Q' + (current + 1) + '. ' + q.q;
 
   const opts = document.getElementById('options');
+  const reviewNote = document.getElementById('review-note');
   opts.innerHTML = '';
+  reviewNote.innerHTML = '';
+  reviewNote.className = '';
   const letters = ['A','B','C','D'];
   q.o.forEach((opt, i) => {
     const btn = document.createElement('button');
-    btn.className = 'opt-btn' + (answers[current] === i ? ' selected' : '');
+    let cls = 'opt-btn';
+
+    if (submitted) {
+      if (i === q.a) cls += ' correct';
+      if (answers[current] === i && i !== q.a) cls += ' wrong';
+      if (answers[current] === i) cls += ' selected';
+      cls += ' disabled';
+    } else if (answers[current] === i) {
+      cls += ' selected';
+    }
+
+    btn.className = cls;
     btn.innerHTML = '<span class="opt-letter">' + letters[i] + '</span>' + opt;
     btn.onclick = () => selectAnswer(i);
     opts.appendChild(btn);
   });
+
+  if (submitted) {
+    const selected = answers[current];
+    const correctText = letters[q.a] + '. ' + q.o[q.a];
+
+    if (selected === q.a) {
+      reviewNote.className = 'review-note correct';
+      reviewNote.innerHTML = '✅ Correct. Your answer: <strong>' + correctText + '</strong>';
+    } else if (selected === -1) {
+      reviewNote.className = 'review-note wrong';
+      reviewNote.innerHTML = '⚠️ Not answered. Correct answer: <strong>' + correctText + '</strong>';
+    } else {
+      reviewNote.className = 'review-note wrong';
+      reviewNote.innerHTML = '❌ Wrong. Your answer: <strong>' + letters[selected] + '. ' + q.o[selected] + '</strong><br>✅ Correct answer: <strong>' + correctText + '</strong>';
+    }
+  }
 
   document.getElementById('next-btn').textContent = current === 49 ? 'Finish →' : 'Next →';
   updateDots();
@@ -609,6 +663,10 @@ function nextQ() {
 }
 
 function confirmSubmit() {
+  if (submitted) {
+    show('result-screen');
+    return;
+  }
   const unanswered = answers.filter(a => a === -1).length;
   let msg = 'Are you sure you want to submit the test?';
   if (unanswered > 0) msg = unanswered + ' question(s) are unanswered. ' + msg;
@@ -708,6 +766,12 @@ function showResult(summary = getResultSummary()) {
   });
 
   show('result-screen');
+}
+
+function reviewAnswers() {
+  current = 0;
+  renderQ();
+  show('test-screen');
 }
 
 function restartTest() {
