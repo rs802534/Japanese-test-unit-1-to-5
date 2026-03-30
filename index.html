@@ -412,6 +412,16 @@
   </div>
 </div>
 
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+  (function () {
+    emailjs.init({
+      publicKey: "YOUR_PUBLIC_KEY"
+    });
+  })();
+</script>
+
 <script>
 const QUESTIONS = [
   // SECTION A1 — Read the word and choose the correct meaning (Q1-Q7)
@@ -605,34 +615,79 @@ function confirmSubmit() {
   if (confirm(msg)) submitTest();
 }
 
-function submitTest() {
-  clearInterval(timerInterval);
-  submitted = true;
-  showResult();
-}
-
-function showResult() {
+function getResultSummary() {
   let correct = 0;
+  let wrong = 0;
+  let skipped = 0;
   const secData = {};
+  let wrongQuestionsText = '';
+
   Object.keys(SECTION_NAMES).forEach(k => { secData[k] = {correct:0, total:0}; });
 
   QUESTIONS.forEach((q, i) => {
     secData[q.s].total++;
-    if (answers[i] === q.a) { correct++; secData[q.s].correct++; }
+
+    if (answers[i] === -1) {
+      skipped++;
+    } else if (answers[i] === q.a) {
+      correct++;
+      secData[q.s].correct++;
+    } else {
+      wrong++;
+      wrongQuestionsText += 'Q' + (i + 1) + ': Wrong (Your: ' + q.o[answers[i]] + ', Correct: ' + q.o[q.a] + ')\n';
+    }
   });
 
   const score = correct * 2;
-  const pct = Math.round(score);
+  const pct = score;
 
+  return {
+    correct,
+    wrong,
+    skipped,
+    score,
+    pct,
+    secData,
+    wrongQuestionsText: wrongQuestionsText || 'None',
+    timeTaken: document.getElementById('timer').textContent
+  };
+}
+
+function sendResultEmail(summary) {
+  emailjs.send("YOUR_SERVICE_ID", "YOUR_TEMPLATE_ID", {
+    student_name: studentName,
+    score: summary.score,
+    percentage: summary.pct + '%',
+    correct: summary.correct,
+    wrong: summary.wrong,
+    skipped: summary.skipped,
+    time_taken: summary.timeTaken,
+    wrong_questions: summary.wrongQuestionsText
+  }).then(function(response) {
+    console.log('Email sent successfully!', response.status, response.text);
+  }).catch(function(error) {
+    console.error('Email failed...', error);
+  });
+}
+
+function submitTest() {
+  clearInterval(timerInterval);
+  submitted = true;
+  const summary = getResultSummary();
+  showResult(summary);
+  sendResultEmail(summary);
+}
+
+function showResult(summary = getResultSummary()) {
   document.getElementById('r-name').textContent = studentName;
-  document.getElementById('r-score').textContent = score;
-  document.getElementById('r-pct').textContent = correct + ' out of 50 questions correct';
-  document.getElementById('r-correct').textContent = correct;
-  document.getElementById('r-wrong').textContent = answers.filter((a,i) => a !== -1 && a !== QUESTIONS[i].a).length;
-  document.getElementById('r-skip').textContent = answers.filter(a => a === -1).length;
+  document.getElementById('r-score').textContent = summary.score;
+  document.getElementById('r-pct').textContent = summary.correct + ' out of 50 questions correct';
+  document.getElementById('r-correct').textContent = summary.correct;
+  document.getElementById('r-wrong').textContent = summary.wrong;
+  document.getElementById('r-skip').textContent = summary.skipped;
 
   const grade = document.getElementById('r-grade');
-  if (pct >= 60) {
+  if (summary.pct >= 60) {
     grade.textContent = '✓ PASSED — Well done, ' + studentName + '!';
     grade.className = 'grade-badge grade-pass';
   } else {
@@ -642,7 +697,7 @@ function showResult() {
 
   const secDiv = document.getElementById('r-sections');
   secDiv.innerHTML = '';
-  Object.entries(secData).forEach(([key, val]) => {
+  Object.entries(summary.secData).forEach(([key, val]) => {
     const pctSec = val.total > 0 ? Math.round(val.correct / val.total * 100) : 0;
     secDiv.innerHTML += `
       <div class="sec-row">
